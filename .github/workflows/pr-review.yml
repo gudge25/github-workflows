@@ -33,6 +33,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           
         with:
+          anthropic_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           show_full_output: false
           use_sticky_comment: true
           
