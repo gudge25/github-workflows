@@ -4,9 +4,11 @@ name: PR Review
 
 # Controls when the workflow will run
 on:
+  workflow_call:
   # Triggers the workflow on push or pull request events but only for the "main" branch
   pull_request:
     branches: [ "main" ]
+    
     
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
