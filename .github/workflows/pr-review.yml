@@ -1,0 +1,84 @@
+# This is a basic workflow to help you get started with Actions
+
+name: PR Review
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  pull_request:
+    branches: [ "main" ]
+    
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v6
+
+      - name: Review PR
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: https://openrouter.ai/api
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ""
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          
+        with:
+          show_full_output: false
+          use_sticky_comment: true
+          
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            
+            Start with a single Bash call to collect all PR data you need:
+              gh api repos/${{ github.repository }}/pulls/${{ env.PR_NUMBER }} && \
+              gh api repos/${{ github.repository }}/pulls/${{ env.PR_NUMBER }}/files --paginate && \
+              gh api repos/${{ github.repository }}/pulls/${{ env.PR_NUMBER }}/comments --paginate && \
+              gh pr diff ${{ env.PR_NUMBER }} --repo ${{ github.repository }}
+            From the comments response: each item has `path` (file), `line`, `user.login`, and `body`.
+            Replies have `in_reply_to_id` — if a human replied "fixed" or "won't fix", treat the thread as resolved.
+            Do NOT post a new inline comment on a file+line that already has a comment from `claude[bot]`, unless the thread indicates the issue was resolved and the new diff reintroduces it.
+
+            Please review this pull request with a focus on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Security implications
+            - Performance considerations
+            Only comment on issues that materially affect correctness, security, or maintainability. Do not nitpick style, naming, or minor formatting. If the PR looks good, post a short top-level comment saying so and leave no inline comments.
+            Note: The PR branch is already checked out in the current working directory.
+
+            Tooling is intentionally minimal. Available built-ins: Read, Grep, Glob, and Bash limited
+            to `gh` and read-only `git` commands. For this PR, `gh api repos/${{ github.repository }}/pulls/${{ env.PR_NUMBER }}...`
+            is allowed (PR body, files list, inline review comments, etc.).
+            Available MCP tool: `mcp__github_inline_comment__create_inline_comment`.
+            Do not attempt Write, Edit, Task, web fetch, or arbitrary shell — those tools are not available.
+            Note: the checkout uses `fetch-depth: 1`, so `git log`, `git blame`, and `git show` only see HEAD.
+
+            PR metadata: do **not** run bare `gh pr view` (it requests check rollup fields the token may reject). Prefer either
+            `gh api repos/${{ github.repository }}/pulls/${{ env.PR_NUMBER }}` / `.../pulls/${{ env.PR_NUMBER }}/files`, or
+            `gh pr view ${{ env.PR_NUMBER }} --repo ${{ github.repository }} --json title,body,state,author,headRefName,baseRefName,files,additions,deletions,changedFiles`.
+            Diff: the PR head is already checked out — use **Read** / **Grep** on paths under the repo root. If you use `gh pr diff`,
+            use **only** `gh pr diff ${{ env.PR_NUMBER }} --repo ${{ github.repository }}` with **no** extra path arguments (not supported on all `gh` versions).
+
+            Use `gh pr comment` for top-level feedback.
+            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) to highlight specific code issues.
+            Only post GitHub comments - don't submit review text as messages.
+          # claude-code-action logs sdkOptions without extraArgs/env; --tools, --permission-mode, --max-turns stay in extraArgs and are omitted from that JSON line.
+          claude_args: >-
+            --model  nvidia/nemotron-3-ultra-550b-a55b:free
+            --permission-mode dontAsk
+            --tools "Bash,Read,Grep,Glob"
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr view*),Bash(gh pr diff*),Bash(gh pr checks*),Bash(gh pr comment*),Bash(gh api repos/${{ github.repository }}/pulls/${{ env.PR_NUMBER }}*),Bash(gh api repos/${{ github.repository }}/issues/*/comments:*),Bash(gh issue view:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(git status:*),Bash(git rev-parse:*)"
+
+
+
